@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ScrubDeck</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f5; display: flex; justify-content: center; padding: 32px 16px; min-height: 100vh; }
+    #app { width: 100%; max-width: 720px; }
+    h1 { font-size: 22px; font-weight: 600; color: #111; margin-bottom: 4px; }
+    .tagline { font-size: 13px; color: #888; margin-bottom: 24px; }
+
+    #deck-outer { width: 100%; overflow: hidden; position: relative; height: 118px; cursor: pointer; }
+    #deck-inner { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+    .th { position: absolute; bottom: 14px; border-radius: 6px; overflow: hidden; border: 1.5px solid rgba(128,128,128,0.3); transition: left .22s cubic-bezier(.4,0,.2,1), width .22s cubic-bezier(.4,0,.2,1), height .22s cubic-bezier(.4,0,.2,1), bottom .22s cubic-bezier(.4,0,.2,1), opacity .22s, border-color .15s; cursor: pointer; }
+    .th canvas { width: 100%; height: 100%; display: block; pointer-events: none; }
+    .th.on { border-color: rgba(55,138,221,0.85); bottom: 24px; }
+    .th.kept::after { content: ''; position: absolute; bottom: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; border: 1.5px solid rgba(255,255,255,.8); }
+
+    #stage { width: 100%; height: 360px; border-radius: 12px; overflow: hidden; border: 1px solid #ddd; background: #111; position: relative; margin-bottom: 6px; }
+    #sc { width: 100%; height: 100%; display: block; }
+    #kbtn { position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,.92); color: #111; border: none; border-radius: 99px; padding: 8px 16px; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; opacity: 0; transition: opacity .15s, background .2s; }
+    #stage:hover #kbtn { opacity: 1; }
+    #kbtn:hover { background: #fff; }
+    #kbtn.flash { background: #1D9E75; color: #fff; }
+    #hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 11px; color: rgba(255,255,255,.35); pointer-events: none; white-space: nowrap; }
+
+    #smeta { display: flex; justify-content: space-between; padding: 5px 2px 10px; font-size: 12px; color: #888; }
+
+    #sbar { position: relative; height: 16px; cursor: pointer; touch-action: none; user-select: none; display: flex; align-items: center; margin-bottom: 20px; }
+    #sline { position: absolute; left: 0; right: 0; height: 2px; background: #ddd; border-radius: 1px; }
+    #sdone { position: absolute; left: 0; height: 2px; background: #999; border-radius: 1px; width: 0; opacity: .4; }
+    #sdot { position: absolute; top: 50%; width: 9px; height: 9px; background: #333; border-radius: 50%; transform: translate(-50%,-50%); left: 0; pointer-events: none; }
+
+    #ksec { border-top: 1px solid #e8e8e8; padding-top: 12px; }
+    #krow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    #klabel { font-size: 12px; font-weight: 600; color: #666; display: flex; align-items: center; gap: 6px; }
+    #kn { background: #e8f2fc; color: #1a6cc4; font-size: 11px; font-weight: 600; border-radius: 10px; padding: 1px 8px; }
+    #cbtn { font-size: 11px; color: #bbb; background: none; border: none; cursor: pointer; }
+    #cbtn:hover { color: #888; }
+
+    #kgrid { display: flex; flex-wrap: wrap; gap: 6px; min-height: 50px; align-items: flex-start; }
+    .kc { position: relative; width: 76px; height: 50px; border-radius: 5px; overflow: hidden; border: 1.5px solid #e0e0e0; cursor: pointer; transition: border-color .12s, box-shadow .12s; animation: pop .18s ease; }
+    .kc canvas { width: 100%; height: 100%; display: block; }
+    .kc:hover { border-color: #aaa; }
+    .kc.sel { border-color: #378ADD; box-shadow: 0 0 0 2.5px rgba(55,138,221,0.2); }
+    .kc.sel .kcheck { opacity: 1; }
+    .kcheck { position: absolute; top: 3px; left: 3px; width: 17px; height: 17px; border-radius: 50%; background: #378ADD; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .12s; font-size: 10px; color: white; }
+    .krm { position: absolute; top: 3px; right: 3px; width: 15px; height: 15px; border-radius: 50%; background: rgba(0,0,0,.5); color: #fff; font-size: 9px; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity .12s; }
+    .kc:hover .krm { opacity: 1; }
+    .kc.sel .krm { opacity: 0; }
+
+    #search-bar { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 9px 12px; background: #f0f0f0; border-radius: 8px; border: 1px solid #e0e0e0; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    #search-bar.visible { opacity: 1; pointer-events: auto; }
+    #search-label { font-size: 12px; color: #555; flex: 1; line-height: 1.4; }
+    #search-label strong { color: #111; }
+    #search-btn { background: #111; color: #fff; border: none; border-radius: 99px; padding: 7px 18px; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+    #search-btn:hover { background: #333; }
+
+    @keyframes pop { from { transform: scale(.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  </style>
+</head>
+<body>
+<div id="app">
+  <h1>ScrubDeck</h1>
+  <p class="tagline">Scrub through images fast. Pick your keepers. Search for more.</p>
+
+  <div id="deck-outer"><div id="deck-inner"></div></div>
+
+  <div id="stage">
+    <canvas id="sc"></canvas>
+    <button id="kbtn">+ Keep</button>
+    <div id="hint">← arrow keys →</div>
+  </div>
+
+  <div id="smeta"><span id="ttl">—</span><span id="idx">1 / 60</span></div>
+  <div id="sbar"><div id="sline"></div><div id="sdone"></div><div id="sdot"></div></div>
+
+  <div id="ksec">
+    <div id="krow">
+      <span id="klabel">🔖 Keepers <span id="kn">0</span></span>
+      <button id="cbtn" onclick="clearAll()">clear all</button>
+    </div>
+    <div id="kgrid">
+      <span id="emsg" style="font-size:12px;color:#aaa">Hover or arrow through cards, then click Keep</span>
+    </div>
+    <div id="search-bar">
+      <span id="search-label">Find similar to <strong id="search-desc">—</strong></span>
+      <button id="search-btn">🔍 Search</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SC=[
+  {l:"Golden Gate at dusk",    sky:["#FF6B35","#C0392B","#8B1A1A"], w:"#1a4a6e", g:"#2c1810", f:"bridge"},
+  {l:"City skyline at night",  sky:["#0a0a2e","#1a1a4e","#0d0d3d"], w:"#050520", g:"#1a1a1a", f:"city"},
+  {l:"Coastal fog rolling in", sky:["#b0bec5","#90a4ae","#78909c"], w:"#607d8b", g:"#4a5568", f:"fog"},
+  {l:"Bay at golden hour",     sky:["#FFD700","#FFA500","#FF6347"], w:"#1565C0", g:"#3e2723", f:"bay"},
+  {l:"Island in morning mist", sky:["#e8f5e9","#c8e6c9","#a5d6a7"], w:"#1976D2", g:"#2e7d32", f:"island"},
+  {l:"Waterfront at sunrise",  sky:["#FF8A65","#FF7043","#F4511E"], w:"#0D47A1", g:"#1B5E20", f:"pier"},
+  {l:"Hillside panorama",      sky:["#7986CB","#5C6BC0","#3F51B5"], w:"#1A237E", g:"#4CAF50", f:"hills"},
+  {l:"Victorian houses row",   sky:["#64B5F6","#42A5F5","#2196F3"], w:null,     g:"#8D6E63", f:"houses"},
+  {l:"Tower at sunset",        sky:["#EF9A9A","#E57373","#EF5350"], w:null,     g:"#5D4037", f:"tower"},
+  {l:"Beach at dusk",          sky:["#CE93D8","#BA68C8","#AB47BC"], w:"#1565C0", g:"#F9A825", f:"beach"},
+];
+
+function rng(s,n){return((s*9301+n*49297)%233280)/233280}
+
+function draw(ctx,W,H,si,seed){
+  const s=SC[si%SC.length];
+  const gr=ctx.createLinearGradient(0,0,0,H*.65);
+  s.sky.forEach((c,i)=>gr.addColorStop(i/(s.sky.length-1),c));
+  ctx.fillStyle=gr; ctx.fillRect(0,0,W,H);
+  if(s.w){ctx.fillStyle=s.w; ctx.fillRect(0,H*.47,W,H*.25);}
+  ctx.fillStyle=s.g; ctx.beginPath(); ctx.moveTo(0,H);
+  const gh=H*(.62+rng(seed,2)*.08);
+  for(let x=0;x<=W;x+=W/16) ctx.lineTo(x,gh+Math.sin(x*.05+seed)*H*.04+rng(seed,x)*H*.03);
+  ctx.lineTo(W,H); ctx.closePath(); ctx.fill();
+  ctx.save();
+  if(s.f==="bridge"){
+    const bx=W*.3,by=H*.25,bw=W*.45;
+    ctx.strokeStyle="#C0392B"; ctx.lineWidth=Math.max(2,W/80);
+    ctx.beginPath(); ctx.moveTo(bx,H*.62); ctx.lineTo(bx,by); ctx.lineTo(bx+bw,by); ctx.lineTo(bx+bw,H*.62); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx-W*.05,H*.55); ctx.lineTo(bx+bw+W*.05,H*.55); ctx.stroke();
+    for(let rx=0;rx<=1;rx+=.1){ctx.beginPath();ctx.moveTo(bx+bw*rx,H*.55);ctx.quadraticCurveTo(bx+bw*.5,by+(H*.55-by)*Math.sin(Math.PI*rx),bx+bw*rx,by);ctx.stroke();}
+  } else if(s.f==="city"){
+    for(let i=0;i<12;i++){const bw2=W/12*.7,bx2=(i/12)*W+(W/12)*.15,bh=H*(.15+rng(seed,i+20)*.25),by=H*.62-bh;ctx.fillStyle=`hsl(${220+rng(seed,i)*20},30%,${15+rng(seed,i+5)*15}%)`;ctx.fillRect(bx2,by,bw2,bh+10);ctx.fillStyle="rgba(255,220,80,.7)";for(let wy=by+4;wy<H*.62;wy+=8)for(let wx=bx2+3;wx<bx2+bw2-3;wx+=7)if(rng(seed,wx+wy)>.4)ctx.fillRect(wx,wy,3,3);}
+  } else if(s.f==="tower"){
+    ctx.fillStyle="#4a3728"; ctx.fillRect(W*.48-W*.015,H*.18,W*.03,H*.44);
+    ctx.beginPath(); ctx.arc(W*.48,H*.18,W*.025,0,Math.PI*2); ctx.fillStyle="#6d4c41"; ctx.fill();
+  } else if(s.f==="hills"){
+    for(let hi=2;hi>=0;hi--){ctx.fillStyle=`hsl(120,${20+hi*15}%,${15+hi*12}%)`;ctx.beginPath();ctx.moveTo(0,H);const base=H*(.5+hi*.07);for(let x=0;x<=W;x+=5)ctx.lineTo(x,base-Math.sin(x*.015+hi+seed*.3)*H*.12-rng(seed,x+hi*100)*H*.04);ctx.lineTo(W,H);ctx.closePath();ctx.fill();}
+  } else if(s.f==="houses"){
+    for(let i=0;i<5;i++){const hx=W*(.05+i*.19),hw=W*.14,hbot=H*.75;ctx.fillStyle=`hsl(${20+rng(seed,i)*340},40%,45%)`;ctx.fillRect(hx,hbot-H*.22,hw,H*.22);ctx.fillStyle=`hsl(${10+rng(seed,i)*20},50%,30%)`;ctx.beginPath();ctx.moveTo(hx-hw*.05,hbot-H*.22);ctx.lineTo(hx+hw/2,hbot-H*.38);ctx.lineTo(hx+hw*1.05,hbot-H*.22);ctx.closePath();ctx.fill();}
+  } else if(s.f==="bay"||s.f==="beach"){
+    ctx.fillStyle="rgba(255,185,0,.88)"; ctx.beginPath(); ctx.arc(W*.75,H*.22,H*.08,0,Math.PI*2); ctx.fill();
+  } else if(s.f==="fog"){
+    for(let fi=0;fi<6;fi++){ctx.fillStyle=`rgba(210,225,235,${.08+rng(seed,fi)*.1})`;ctx.fillRect(0,H*(.28+fi*.06),W,H*.06);}
+  } else if(s.f==="island"){
+    ctx.fillStyle="#2e7d32"; ctx.beginPath(); ctx.ellipse(W*.5,H*.55,W*.15,H*.07,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#1b5e20"; ctx.beginPath(); ctx.moveTo(W*.5,H*.3); ctx.lineTo(W*.44,H*.55); ctx.lineTo(W*.56,H*.55); ctx.closePath(); ctx.fill();
+  } else if(s.f==="pier"){
+    ctx.fillStyle="#5d4037"; ctx.fillRect(W*.35,H*.45,W*.3,H*.18);
+    for(let p=0;p<5;p++) ctx.fillRect(W*.36+p*W*.057,H*.63,W*.014,H*.1);
+  }
+  ctx.restore();
+}
+
+const N=60;
+const CARD_SIZES=[{w:138,h:92},{w:108,h:72},{w:84,h:56},{w:66,h:44}];
+const OPACITIES=[1,.8,.6,.35];
+const GAP=10;
+function sizeAt(d){return CARD_SIZES[Math.min(d,CARD_SIZES.length-1)];}
+function opacAt(d){return OPACITIES[Math.min(d,OPACITIES.length-1)];}
+
+let cur=0, keepers=new Set(), selected=new Set();
+const stc=document.getElementById('sc'), stx=stc.getContext('2d');
+const ttl=document.getElementById('ttl'), idxEl=document.getElementById('idx');
+const sdone=document.getElementById('sdone'), sdot=document.getElementById('sdot');
+const di=document.getElementById('deck-inner');
+const kgrid=document.getElementById('kgrid'), kn=document.getElementById('kn');
+const sbar=document.getElementById('sbar');
+const deckOuter=document.getElementById('deck-outer');
+const searchBar=document.getElementById('search-bar');
+const searchDesc=document.getElementById('search-desc');
+const cards=[];
+
+function layoutCards(){
+  const cw=deckOuter.clientWidth||720, cx=cw/2, as=sizeAt(0);
+  for(let i=0;i<N;i++){
+    const offset=i-cur, d=Math.abs(offset), s=sizeAt(d), op=opacAt(d);
+    let left;
+    if(offset===0) left=cx-as.w/2;
+    else if(offset>0){left=cx+as.w/2+GAP; for(let j=1;j<offset;j++) left+=sizeAt(j).w+GAP;}
+    else{left=cx-as.w/2-GAP-s.w; for(let j=1;j<-offset;j++) left-=(sizeAt(j).w+GAP);}
+    const el=cards[i];
+    el.style.left=left+'px'; el.style.width=s.w+'px'; el.style.height=s.h+'px';
+    el.style.opacity=op; el.style.zIndex=100-d;
+    if(offset===0) el.classList.add('on'); else el.classList.remove('on');
+  }
+}
+
+function drawStage(i){
+  const W=stc.parentElement.clientWidth||720;
+  stc.width=W; stc.height=360;
+  draw(stx,W,360,i%SC.length,i*97+13);
+}
+
+function setPos(i){
+  const p=i/(N-1);
+  sdone.style.width=(p*100)+'%';
+  sdot.style.left=(p*100)+'%';
+}
+
+function goTo(i){
+  i=Math.max(0,Math.min(N-1,i)); cur=i;
+  drawStage(i);
+  ttl.textContent=SC[i%SC.length].l+' — #'+(i+1);
+  idxEl.textContent=(i+1)+' / '+N;
+  setPos(i); layoutCards();
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'){e.preventDefault(); goTo(cur+1);}
+  else if(e.key==='ArrowLeft'){e.preventDefault(); goTo(cur-1);}
+});
+
+let sbDrag=false;
+sbar.addEventListener('pointerdown',e=>{sbar.setPointerCapture(e.pointerId);sbDrag=true;const r=sbar.getBoundingClientRect();goTo(Math.round(Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*(N-1)));});
+sbar.addEventListener('pointermove',e=>{if(!sbDrag)return;const r=sbar.getBoundingClientRect();goTo(Math.round(Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*(N-1)));});
+sbar.addEventListener('pointerup',()=>sbDrag=false);
+sbar.addEventListener('pointercancel',()=>sbDrag=false);
+
+document.getElementById('kbtn').addEventListener('click',()=>{
+  if(keepers.has(cur))return;
+  keepers.add(cur); cards[cur]?.classList.add('kept');
+  const btn=document.getElementById('kbtn'); btn.classList.add('flash');
+  setTimeout(()=>btn.classList.remove('flash'),500);
+  renderKeepers();
+});
+
+function toggleSelect(i){
+  if(selected.has(i)) selected.delete(i); else selected.add(i);
+  renderKeepers();
+}
+
+function updateSearchBar(){
+  if(selected.size===0){searchBar.classList.remove('visible');return;}
+  searchBar.classList.add('visible');
+  const labels=[...selected].map(i=>SC[i%SC.length].l);
+  if(labels.length===1) searchDesc.textContent='"'+labels[0]+'"';
+  else if(labels.length===2) searchDesc.textContent='"'+labels[0]+'" + "'+labels[1]+'"';
+  else searchDesc.textContent=labels.length+' selected images';
+}
+
+function renderKeepers(){
+  kn.textContent=keepers.size; kgrid.innerHTML='';
+  if(!keepers.size){
+    kgrid.innerHTML='<span style="font-size:12px;color:#aaa">Hover or arrow through cards, then click Keep</span>';
+    selected.clear(); updateSearchBar(); return;
+  }
+  keepers.forEach(i=>{
+    const d=document.createElement('div'); d.className='kc'+(selected.has(i)?' sel':'');
+    const c=document.createElement('canvas'); c.width=76; c.height=50;
+    draw(c.getContext('2d'),76,50,i%SC.length,i*97+13);
+    const chk=document.createElement('div'); chk.className='kcheck'; chk.textContent='✓';
+    const rm=document.createElement('div'); rm.className='krm'; rm.textContent='✕';
+    rm.addEventListener('click',e=>{e.stopPropagation();keepers.delete(i);selected.delete(i);cards[i]?.classList.remove('kept');renderKeepers();});
+    d.appendChild(c); d.appendChild(chk); d.appendChild(rm);
+    d.addEventListener('click',()=>toggleSelect(i));
+    kgrid.appendChild(d);
+  });
+  updateSearchBar();
+}
+
+function clearAll(){keepers.clear();selected.clear();cards.forEach(c=>c.classList.remove('kept'));renderKeepers();}
+window.clearAll=clearAll;
+
+document.getElementById('search-btn').addEventListener('click',()=>{
+  const labels=[...selected].map(i=>SC[i%SC.length].l);
+  alert('Search placeholder\n\nQuery built from:\n'+labels.map(l=>'• '+l).join('\n'));
+});
+
+for(let i=0;i<N;i++){
+  const d=document.createElement('div'); d.className='th';
+  const c=document.createElement('canvas'); c.width=138; c.height=92;
+  draw(c.getContext('2d'),138,92,i%SC.length,i*97+13);
+  d.appendChild(c);
+  d.addEventListener('mouseenter',()=>goTo(i));
+  di.appendChild(d); cards.push(d);
+}
+
+goTo(0);
+window.addEventListener('resize',()=>layoutCards());
+</script>
+</body>
+</html>
